@@ -6,17 +6,9 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include "MinHook.h"
+#include "DebugPrint.h"
 
 #pragma comment(lib, "ws2_32.lib")
-
-void DebugPrint(const wchar_t* format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    wchar_t message[1024];
-    vswprintf(message, 1024, format, args);
-    OutputDebugStringW(message);
-}
 
 // Function prototypes
 typedef int (WSAAPI (*LPWSACONNECT)(

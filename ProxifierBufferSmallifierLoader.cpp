@@ -3,24 +3,39 @@
 #include <stdio.h>
 #include <wchar.h>
 #include <windows.h>
+#include "DebugPrint.h"
 
-#define DEFAULT_PATH L"Proxifier.exe"
+#define DEFAULT_PATH L"ProxifierOriginal.exe"
 #define HOOK_DLL L"ProxifierBufferSmallifierLoaderHook.dll"
 
 int wmain(int argc, const wchar_t* argv[]) {
-    LPCWSTR proxifierPath;
-    if (argc < 2) {
-        proxifierPath = DEFAULT_PATH;
-    }
-    else {
-        proxifierPath = argv[1];
+    const wchar_t** proxifierArgv = NULL;
+    int proxifierArgc = 0;
+    
+    LPCWSTR proxifierPath = DEFAULT_PATH;
+    proxifierArgc = argc - 1;
+    proxifierArgv = &argv[1];
+    
+    if (proxifierArgc == 0)
+    {
+        proxifierArgv = NULL;
     }
     
-    int pathLength = wcslen(proxifierPath);
-    wchar_t proxifierPathCopy[pathLength];
-    wcscpy(proxifierPathCopy, proxifierPath);
+    wchar_t commandLine[2048] = {0};
+    wcscat_s(commandLine, 2048, proxifierPath);
+    wcscat_s(commandLine, 2048, L" ");
     
-    wprintf(L"%ls\n", proxifierPathCopy);
+    if (proxifierArgc > 0)
+    {
+        for (int i = 0; i < proxifierArgc; i++)
+        {
+            wcscat_s(commandLine, 2048, L"\"");
+            wcscat_s(commandLine, 2048, proxifierArgv[i]);
+            wcscat_s(commandLine, 2048, L"\" ");
+        }
+    }
+    
+    DebugPrint(L"%ls", commandLine);
 
     // Load the program to be monitored
     STARTUPINFOW si;
@@ -30,7 +45,7 @@ int wmain(int argc, const wchar_t* argv[]) {
     ZeroMemory(&pi, sizeof(pi));
     if (!CreateProcessW(
         NULL, 
-        proxifierPathCopy, 
+        commandLine, 
         NULL, 
         NULL, 
         FALSE, 
@@ -40,7 +55,7 @@ int wmain(int argc, const wchar_t* argv[]) {
         &si, 
         &pi))
     {
-        wprintf(L"CreateProcess failed: %d\n", GetLastError());
+        DebugPrint(L"CreateProcess failed: %d", GetLastError());
         return 1;
     }
 
@@ -49,7 +64,7 @@ int wmain(int argc, const wchar_t* argv[]) {
         "LoadLibraryW");
     if (!lpLoadLibraryW)
     {
-        wprintf(L"GetProcAddress failed\n");
+        DebugPrint(L"GetProcAddress failed\n");
         CloseHandle(pi.hProcess);
         return 1;
     }
@@ -64,7 +79,7 @@ int wmain(int argc, const wchar_t* argv[]) {
         PAGE_READWRITE);
     if (!lpRemoteString)
     {
-        wprintf(L"VirtualAllocEx failed\n");
+        DebugPrint(L"VirtualAllocEx failed\n");
         CloseHandle(pi.hProcess);
         return 1;
     }
@@ -76,7 +91,7 @@ int wmain(int argc, const wchar_t* argv[]) {
         nLength, 
         NULL)) 
     {
-        wprintf(L"WriteProcessMemory failed\n");
+        DebugPrint(L"WriteProcessMemory failed\n");
         VirtualFreeEx(pi.hProcess, lpRemoteString, 0, MEM_RELEASE);
         CloseHandle(pi.hProcess);
         return 1;
@@ -92,7 +107,7 @@ int wmain(int argc, const wchar_t* argv[]) {
         NULL);
     if (!hThread)
     {
-        wprintf(L"CreateRemoteThread failed\n");
+        DebugPrint(L"CreateRemoteThread failed\n");
         VirtualFreeEx(pi.hProcess, lpRemoteString, 0, MEM_RELEASE);
         CloseHandle(pi.hProcess);
         return 1;
