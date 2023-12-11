@@ -35,6 +35,22 @@ int wmain(int argc, const wchar_t* argv[]) {
         }
     }
     
+     // Create the job object
+    HANDLE jobObject = CreateJobObjectW(NULL, NULL);
+    if (!jobObject) {
+        DebugPrint(L"Error: CreateJobObjectW failed with error code %d", GetLastError());
+        return 1;
+    }
+    
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION jobInfo;
+    jobInfo.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    SetInformationJobObject(jobObject, JobObjectExtendedLimitInformation, &jobInfo, sizeof(jobInfo));
+    
+    if (!AssignProcessToJobObject(jobObject, GetCurrentProcess())) {
+        DebugPrint(L"Error: AssignProcessToJobObject failed with error code %d", GetLastError());
+        return 1;
+    }
+    
     DebugPrint(L"%ls", commandLine);
 
     // Load the program to be monitored
@@ -56,6 +72,7 @@ int wmain(int argc, const wchar_t* argv[]) {
         &pi))
     {
         DebugPrint(L"CreateProcess failed: %d", GetLastError());
+        CloseHandle(jobObject);
         return 1;
     }
 
@@ -64,7 +81,8 @@ int wmain(int argc, const wchar_t* argv[]) {
         "LoadLibraryW");
     if (!lpLoadLibraryW)
     {
-        DebugPrint(L"GetProcAddress failed\n");
+        DebugPrint(L"GetProcAddress failed");
+        CloseHandle(jobObject);
         CloseHandle(pi.hProcess);
         return 1;
     }
@@ -79,7 +97,8 @@ int wmain(int argc, const wchar_t* argv[]) {
         PAGE_READWRITE);
     if (!lpRemoteString)
     {
-        DebugPrint(L"VirtualAllocEx failed\n");
+        DebugPrint(L"VirtualAllocEx failed");
+        CloseHandle(jobObject);
         CloseHandle(pi.hProcess);
         return 1;
     }
@@ -91,8 +110,9 @@ int wmain(int argc, const wchar_t* argv[]) {
         nLength, 
         NULL)) 
     {
-        DebugPrint(L"WriteProcessMemory failed\n");
+        DebugPrint(L"WriteProcessMemory failed");
         VirtualFreeEx(pi.hProcess, lpRemoteString, 0, MEM_RELEASE);
+        CloseHandle(jobObject);
         CloseHandle(pi.hProcess);
         return 1;
     }
@@ -107,8 +127,9 @@ int wmain(int argc, const wchar_t* argv[]) {
         NULL);
     if (!hThread)
     {
-        DebugPrint(L"CreateRemoteThread failed\n");
+        DebugPrint(L"CreateRemoteThread failed");
         VirtualFreeEx(pi.hProcess, lpRemoteString, 0, MEM_RELEASE);
+        CloseHandle(jobObject);
         CloseHandle(pi.hProcess);
         return 1;
     }
